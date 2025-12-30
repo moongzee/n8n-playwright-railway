@@ -1,40 +1,49 @@
-# 1. OS가 확실한 최신 Debian 기반 n8n 이미지를 사용 (버전 명시)
-FROM n8nio/n8n:1.71.3-debian
+# 1. 패키지 설치가 가능한 표준 Node.js Debian 이미지를 베이스로 사용합니다.
+FROM node:20-bookworm-slim
 
 USER root
 
-# 2. 패키지 매니저가 있는지 확인하고 Playwright 필수 라이브러리 설치
-# 최신 이미지는 apt-get이 반드시 존재하며, 서버 주소 문제도 없습니다.
+# 2. Playwright 및 Chromium 실행에 필요한 OS 필수 라이브러리 설치
+# Debian Bookworm 환경이므로 apt-get이 정상 작동합니다.
 RUN apt-get update && apt-get install -y \
-    chromium \
+    curl \
+    ca-certificates \
+    fonts-freefont-ttf \
     libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
+    libasound2 \
     libatk-bridge2.0-0 \
+    libatk1.0-0 \
     libcups2 \
     libdrm2 \
-    libxkbcommon0 \
+    libgbm1 \
     libxcomposite1 \
     libxdamage1 \
-    libxext6 \
     libxfixes3 \
     libxrandr2 \
-    libgbm1 \
-    libasound2 \
+    libxkbcommon0 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. Playwright 및 커뮤니티 노드 설치
-RUN npm install -g n8n-nodes-playwright
+# 3. n8n과 Playwright 노드 설치
+# n8n을 전역 설치하여 공식 이미지와 동일하게 작동하도록 합니다.
+RUN npm install -g n8n n8n-nodes-playwright
 
-# 4. Playwright 브라우저 설치 경로 설정 및 설치
+# 4. Playwright 브라우저(Chromium) 설치 및 경로 설정
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
 RUN npx playwright install chromium
 
-# 5. 권한 설정 (node 유저가 브라우저를 실행할 수 있도록)
-RUN mkdir -p /home/node/.cache && chown -R node:node /home/node/.cache
+# 5. n8n 작업 디렉토리 및 권한 설정
+WORKDIR /home/node/.n8n
+RUN chown -R node:node /home/node
 
-# 6. n8n 설정
+# 6. 환경 변수 설정
 ENV N8N_COMMUNITY_PACKAGES_ENABLED=true
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=playwright
+# Railway 환경에서 포트 바인딩을 위해 필요합니다.
+EXPOSE 5678
 
 USER node
+
+# 7. n8n 실행
+CMD ["n8n", "start"]
